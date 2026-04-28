@@ -1,5 +1,7 @@
 # gc-vault
 
+[![CI](https://github.com/cm-igarashi-ryosuke/gc-vault/actions/workflows/ci.yml/badge.svg)](https://github.com/cm-igarashi-ryosuke/gc-vault/actions/workflows/ci.yml)
+
 Google Cloud のサービスアカウント権限借用 (Service Account Impersonation) を、AWS の `aws-vault` ライクな体験でローカル開発に提供する CLI ツールです。
 
 > **Status: WIP (Pre-alpha)**
