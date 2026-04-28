@@ -87,6 +87,14 @@ gc-vault exec <profile> -- <cmd>
 
 ## インストール
 
+### `go install`
+
+```bash
+go install github.com/cm-igarashi-ryosuke/gc-vault/cmd/gc-vault@latest
+```
+
+### ソースから `make install`
+
 ```bash
 git clone https://github.com/cm-igarashi-ryosuke/gc-vault.git
 cd gc-vault
@@ -99,6 +107,10 @@ make install   # $GOPATH/bin にインストール
 make build     # bin/gc-vault に出力
 ```
 
+### Releases ページから
+
+[Releases](https://github.com/cm-igarashi-ryosuke/gc-vault/releases) から該当 OS / アーキテクチャの tar.gz をダウンロードし、解凍してパスの通った場所に配置。
+
 ## 開発
 
 ```bash
@@ -110,6 +122,19 @@ make lint        # go vet + gofmt チェック
 make fmt         # gofmt -w .
 make clean       # bin/ 削除
 ```
+
+## リリース手順
+
+タグを切るだけで GitHub Actions が goreleaser を起動し、Release（draft）を作成します：
+
+```bash
+git tag -a v0.1.0 -m "Release v0.1.0"
+git push origin v0.1.0
+```
+
+成果物（`darwin_x86_64` / `darwin_arm64` の tar.gz と `checksums.txt`）が draft Release に添付されます。確認後、GitHub UI で Publish すれば公開リリースになります。
+
+将来 brew tap を有効にする場合は、`gc-vault` リポジトリを public 化した上で、別途 `cm-igarashi-ryosuke/homebrew-tap` リポジトリを作成し、`.goreleaser.yaml` に `brews:` セクションを追加します。
 
 ## セットアップ
 
