@@ -1,0 +1,26 @@
+# gc-vault configuration
+# Place this file at: ~/.config/gc-vault/config.toml
+#
+# Each [profiles.<name>] section defines a profile that can be used with
+# `gc-vault exec <name> -- <command>`.
+
+[profiles.my-app-dev]
+# 1Password URL reference to the bootstrap SA key document.
+# Format: op://VAULT/ITEM
+bootstrap_op_ref = "op://Private/my-app-dev-bootstrap"
+
+# Target service account email to impersonate.
+target_sa = "readonly-alice@my-app-dev.iam.gserviceaccount.com"
+
+# GCP project ID (also exposed via CLOUDSDK_CORE_PROJECT to the child process).
+project = "my-app-dev"
+
+# Access token lifetime in seconds (max 43200 = 12 hours).
+lifetime = 3600
+
+# Add more profiles as needed:
+# [profiles.my-app-stg]
+# bootstrap_op_ref = "op://Private/my-app-stg-bootstrap"
+# target_sa = "readonly-alice@my-app-stg.iam.gserviceaccount.com"
+# project = "my-app-stg"
+# lifetime = 3600
