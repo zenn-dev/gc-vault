@@ -82,8 +82,10 @@ gc-vault exec <profile> -- <cmd>
 
 - macOS (arm64 / amd64)
 - [`gcloud` CLI](https://cloud.google.com/sdk/docs/install)
-- [`op` CLI (1Password)](https://developer.1password.com/docs/cli/get-started/)
-- (開発時のみ) Go 1.23+
+- 1Password デスクトップアプリ（v8 以降）— Settings → Developer → **「Connect with 1Password SDKs」を有効化**
+- (開発時のみ) Go 1.23+ + CGO 環境（macOS なら標準で OK）
+
+> 1Password との通信は [1Password Go SDK](https://github.com/1Password/onepassword-sdk-go) 経由のため、`op` CLI のインストールは不要です。デスクトップアプリの SDK 統合のみが必要。
 
 ## インストール
 

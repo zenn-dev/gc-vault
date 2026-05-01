@@ -11,7 +11,7 @@ builds:
     main: ./cmd/gc-vault
     binary: gc-vault
     env:
-      - CGO_ENABLED=0
+      - CGO_ENABLED=1
     ldflags:
       - -s -w -X github.com/cm-igarashi-ryosuke/gc-vault/internal/version.Version={{.Version}}
     goos:

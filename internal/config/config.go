@@ -10,7 +10,8 @@ import (
 )
 
 type Config struct {
-	Profiles map[string]Profile `toml:"profiles"`
+	OpAccount string             `toml:"op_account"`
+	Profiles  map[string]Profile `toml:"profiles"`
 }
 
 type Profile struct {
@@ -55,6 +56,9 @@ func LoadFrom(path string) (*Config, error) {
 func (c *Config) normalize() error {
 	if len(c.Profiles) == 0 {
 		return fmt.Errorf("no profiles defined")
+	}
+	if c.OpAccount == "" {
+		return fmt.Errorf("op_account is required at the top level (e.g. op_account = \"my.1password.com\")")
 	}
 	for name, p := range c.Profiles {
 		if p.BootstrapOpRef == "" {
