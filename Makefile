@@ -34,6 +34,7 @@ fmt: ## Format all Go files
 	gofmt -w .
 
 install: build ## Install the binary to $GOPATH/bin
+	@mkdir -p $(INSTALL_DIR)
 	install -m 0755 $(BIN) $(INSTALL_DIR)/gc-vault
 	@echo "Installed: $(INSTALL_DIR)/gc-vault"
 
