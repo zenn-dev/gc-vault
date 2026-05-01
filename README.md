@@ -82,10 +82,10 @@ gc-vault exec <profile> -- <cmd>
 
 - macOS (arm64 / amd64)
 - [`gcloud` CLI](https://cloud.google.com/sdk/docs/install)
-- 1Password デスクトップアプリ（v8 以降）— Settings → Developer → **「Connect with 1Password SDKs」を有効化**
-- (開発時のみ) Go 1.23+ + CGO 環境（macOS なら標準で OK）
+- [`op` CLI (1Password)](https://developer.1password.com/docs/cli/get-started/) — Settings → Developer → 「Integrate with 1Password CLI」を有効化
+- (開発時のみ) Go 1.23+
 
-> 1Password との通信は [1Password Go SDK](https://github.com/1Password/onepassword-sdk-go) 経由のため、`op` CLI のインストールは不要です。デスクトップアプリの SDK 統合のみが必要。
+> **Claude Code 自走非対応**: gc-vault は Terminal.app / iTerm2 など 1Password に信頼されたターミナルから実行することを前提とします。Claude Code の Bash tool 内から `gc-vault exec` を直接呼ぶと、1Password CLI が親プロセスを信頼しないため失敗します。詳細は [Issue #1](https://github.com/cm-igarashi-ryosuke/gc-vault/issues/1) を参照。
 
 ## インストール
 

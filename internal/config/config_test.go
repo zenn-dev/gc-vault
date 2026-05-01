@@ -58,8 +58,6 @@ func writeConfig(t *testing.T, content string) string {
 
 func TestLoadFrom_Valid(t *testing.T) {
 	path := writeConfig(t, `
-op_account = "test.1password.com"
-
 [profiles.dev]
 bootstrap_op_ref = "op://Private/dev-bootstrap"
 target_sa = "readonly@dev.iam.gserviceaccount.com"
@@ -77,9 +75,6 @@ lifetime = 7200
 	if err != nil {
 		t.Fatalf("LoadFrom: %v", err)
 	}
-	if cfg.OpAccount != "test.1password.com" {
-		t.Errorf("op_account: got %q", cfg.OpAccount)
-	}
 	if len(cfg.Profiles) != 2 {
 		t.Errorf("profiles count: got %d, want 2", len(cfg.Profiles))
 	}
@@ -95,8 +90,6 @@ lifetime = 7200
 
 func TestLoadFrom_DefaultLifetime(t *testing.T) {
 	path := writeConfig(t, `
-op_account = "test.1password.com"
-
 [profiles.dev]
 bootstrap_op_ref = "op://Private/dev-bootstrap"
 target_sa = "readonly@dev.iam.gserviceaccount.com"
@@ -113,8 +106,6 @@ project = "dev"
 
 func TestLoadFrom_ZeroLifetimeDefaulted(t *testing.T) {
 	path := writeConfig(t, `
-op_account = "test.1password.com"
-
 [profiles.dev]
 bootstrap_op_ref = "op://Private/dev-bootstrap"
 target_sa = "readonly@dev.iam.gserviceaccount.com"
@@ -137,35 +128,25 @@ func TestLoadFrom_Invalid(t *testing.T) {
 	}{
 		{"empty file", ``},
 		{"no profiles", `# only comments`},
-		{"missing op_account", `
-[profiles.dev]
-bootstrap_op_ref = "op://Private/i"
-target_sa = "x@y.com"
-project = "dev"`},
 		{"missing bootstrap_op_ref", `
-op_account = "test.1password.com"
 [profiles.dev]
 target_sa = "x@y.com"
 project = "dev"`},
 		{"invalid op ref scheme", `
-op_account = "test.1password.com"
 [profiles.dev]
 bootstrap_op_ref = "not-a-ref"
 target_sa = "x@y.com"
 project = "dev"`},
 		{"op ref without item", `
-op_account = "test.1password.com"
 [profiles.dev]
 bootstrap_op_ref = "op://Private"
 target_sa = "x@y.com"
 project = "dev"`},
 		{"missing target_sa", `
-op_account = "test.1password.com"
 [profiles.dev]
 bootstrap_op_ref = "op://Private/i"
 project = "dev"`},
 		{"missing project", `
-op_account = "test.1password.com"
 [profiles.dev]
 bootstrap_op_ref = "op://Private/i"
 target_sa = "x@y.com"`},

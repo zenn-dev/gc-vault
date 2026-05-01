@@ -13,7 +13,7 @@ help: ## Show this help
 
 build: ## Build the binary into bin/gc-vault
 	@mkdir -p $(BIN_DIR)
-	CGO_ENABLED=1 go build -ldflags "$(LDFLAGS)" -o $(BIN) $(PKG)
+	go build -trimpath -ldflags "$(LDFLAGS)" -o $(BIN) $(PKG)
 
 test: ## Run all tests
 	go test ./...

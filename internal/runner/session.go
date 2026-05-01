@@ -32,15 +32,14 @@ func newSession(profileName string) (*session, error) {
 		return nil, err
 	}
 
-	ctx := context.Background()
-
 	fmt.Fprintf(os.Stderr, "gc-vault: fetching bootstrap key from 1Password (%s/%s)\n", vault, item)
-	bootstrapKey, err := onepassword.GetDocument(ctx, cfg.OpAccount, vault, item)
+	bootstrapKey, err := onepassword.GetDocument(vault, item)
 	if err != nil {
 		return nil, err
 	}
 
 	fmt.Fprintf(os.Stderr, "gc-vault: impersonating %s\n", profile.TargetSA)
+	ctx := context.Background()
 	token, err := gcp.GenerateAccessToken(ctx, bootstrapKey, profile.TargetSA, profile.Lifetime)
 	if err != nil {
 		return nil, err

@@ -8,6 +8,7 @@ import (
 	"sort"
 
 	"github.com/cm-igarashi-ryosuke/gc-vault/internal/config"
+	"github.com/cm-igarashi-ryosuke/gc-vault/internal/onepassword"
 )
 
 func Run() error {
@@ -20,14 +21,23 @@ func Run() error {
 		fmt.Println("OK    gcloud CLI found")
 	}
 
+	if _, err := exec.LookPath("op"); err != nil {
+		fmt.Println("FAIL  1Password CLI (op) not found in PATH")
+		problems++
+	} else if account, err := onepassword.WhoAmI(); err != nil {
+		fmt.Printf("WARN  op whoami: %v\n", err)
+		fmt.Println("        (the 1Password desktop app may need to be running and unlocked)")
+	} else {
+		fmt.Printf("OK    1Password CLI signed in: %s\n", account)
+	}
+
 	cfgPath, _ := config.DefaultPath()
 	cfg, err := config.Load()
 	if err != nil {
 		fmt.Printf("FAIL  config: %v\n", err)
 		problems++
 	} else {
-		fmt.Printf("OK    config: %s (%d profile(s), 1Password account=%q)\n",
-			cfgPath, len(cfg.Profiles), cfg.OpAccount)
+		fmt.Printf("OK    config: %s (%d profile(s))\n", cfgPath, len(cfg.Profiles))
 		names := make([]string, 0, len(cfg.Profiles))
 		for n := range cfg.Profiles {
 			names = append(names, n)

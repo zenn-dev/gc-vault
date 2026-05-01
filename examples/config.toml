@@ -4,11 +4,6 @@
 # Each [profiles.<name>] section defines a profile that can be used with
 # `gc-vault exec <name> -- <command>`.
 
-# 1Password account name as shown at the top-left of the 1Password desktop app
-# (e.g. "my.1password.com" or "<company>.1password.com").
-# You can also use the account UUID from `op account list --format=json`.
-op_account = "my.1password.com"
-
 [profiles.my-app-dev]
 # 1Password URL reference to the bootstrap SA key document.
 # Format: op://VAULT/ITEM
