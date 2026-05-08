@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/cm-igarashi-ryosuke/gc-vault/internal/config"
-	"github.com/cm-igarashi-ryosuke/gc-vault/internal/onepassword"
+	"github.com/zenn-dev/gc-vault/internal/config"
+	"github.com/zenn-dev/gc-vault/internal/onepassword"
 )
 
 func Run() error {

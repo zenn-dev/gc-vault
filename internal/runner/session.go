@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/cm-igarashi-ryosuke/gc-vault/internal/config"
-	"github.com/cm-igarashi-ryosuke/gc-vault/internal/gcp"
-	"github.com/cm-igarashi-ryosuke/gc-vault/internal/onepassword"
+	"github.com/zenn-dev/gc-vault/internal/config"
+	"github.com/zenn-dev/gc-vault/internal/gcp"
+	"github.com/zenn-dev/gc-vault/internal/onepassword"
 )
 
 type session struct {

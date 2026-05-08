@@ -8,10 +8,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/cm-igarashi-ryosuke/gc-vault/internal/config"
-	"github.com/cm-igarashi-ryosuke/gc-vault/internal/doctor"
-	"github.com/cm-igarashi-ryosuke/gc-vault/internal/runner"
-	"github.com/cm-igarashi-ryosuke/gc-vault/internal/version"
+	"github.com/zenn-dev/gc-vault/internal/config"
+	"github.com/zenn-dev/gc-vault/internal/doctor"
+	"github.com/zenn-dev/gc-vault/internal/runner"
+	"github.com/zenn-dev/gc-vault/internal/version"
 )
 
 func main() {

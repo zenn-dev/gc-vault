@@ -6,7 +6,7 @@ PKG := ./cmd/gc-vault
 INSTALL_DIR := $(shell go env GOPATH)/bin
 
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "0.0.1-dev")
-LDFLAGS := -s -w -X github.com/cm-igarashi-ryosuke/gc-vault/internal/version.Version=$(VERSION)
+LDFLAGS := -s -w -X github.com/zenn-dev/gc-vault/internal/version.Version=$(VERSION)
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'

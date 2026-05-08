@@ -171,7 +171,7 @@ unset ACCESS_TOKEN
 
 > **補足**: 上記の手順は手動検証用です。実際の `gc-vault` MVP では gcloud CLI を介さず、`iamcredentials.googleapis.com` の REST API を直接呼んで借用トークンを取得するため、`CLOUDSDK_CONFIG` の隔離は不要になります。
 
-## 6. 既存の裸クレデンシャルを削除（移行時のみ）
+## 6. 既存のクレデンシャルを削除（移行時のみ）
 
 `gc-vault` 導入前に `gcloud auth login` 等を行っていた場合、ローカルに残っている credentials を削除します。
 
@@ -214,7 +214,7 @@ export PROJECT="my-app-prod"
 - 1Password (`${OP_VAULT}`) に `${PROJECT}-bootstrap` の名前で各プロジェクト分のドキュメントが保管されている
 - ローカルには鍵 JSON が一切残っていない
 
-## 8. ローテーション (90 日ごと推奨)
+## 8. ローテーション
 
 ```bash
 export USER_HANDLE="alice"
@@ -242,25 +242,7 @@ gcloud iam service-accounts keys delete <OLD_KEY_ID> \
 
 > bootstrap SA は `roles/iam.serviceAccountTokenCreator` のみを持ち漏洩時のリスクが限定的なため、ローテーションは `gc-vault` のコマンドではなく上記の手動手順で行う方針です。
 
-## 9. トラブルシューティング
-
-### `Permission denied` で `keys create` が失敗する
-
-bootstrap SA のキー発行権限がない可能性。`roles/iam.serviceAccountKeyAdmin` を追加付与してもらってください。組織ポリシー `iam.disableServiceAccountKeyCreation` で全社的にキー発行が禁止されている場合は、組織管理者に例外を相談する必要があります。
-
-### `iamcredentials.googleapis.com has not been used` エラー
-
-該当プロジェクトで IAM Service Account Credentials API が有効化されていません：
-
-```bash
-gcloud services enable iamcredentials.googleapis.com --project="${PROJECT}"
-```
-
-### `print-access-token --impersonate-service-account` が `Permission denied`
-
-`bootstrap` から `target` への `serviceAccountTokenCreator` 付与（手順 3-4）が反映されていません。IAM の伝播には数十秒〜数分かかる場合があります。
-
-## 10. 監査確認
+## 9. 監査確認
 
 借用操作は Cloud Audit Logs に記録されます。以下のクエリで自分の借用履歴を確認できます（`<USER_HANDLE>` と `<PROJECT>` は適宜置き換えてください）：
 

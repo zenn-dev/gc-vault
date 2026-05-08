@@ -1,4 +1,4 @@
-module github.com/cm-igarashi-ryosuke/gc-vault
+module github.com/zenn-dev/gc-vault
 
 go 1.25.0
 

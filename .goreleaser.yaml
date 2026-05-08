@@ -13,7 +13,7 @@ builds:
     env:
       - CGO_ENABLED=0
     ldflags:
-      - -s -w -X github.com/cm-igarashi-ryosuke/gc-vault/internal/version.Version={{.Version}}
+      - -s -w -X github.com/zenn-dev/gc-vault/internal/version.Version={{.Version}}
     goos:
       - darwin
     goarch:
