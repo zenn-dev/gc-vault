@@ -41,10 +41,8 @@ gc-vault exec <profile> -- <cmd>
 
 | ツール | 用途 |
 |---|---|
-| `gcloud` | Google Cloud 操作全般 |
-| `gcloud storage` | Cloud Storage（**旧 `gsutil` は対応外** — [既知の対象外](#既知の対象外) 参照） |
+| `gcloud` | Google Cloud 操作全般（**旧 `gsutil` は対応外** — [既知の対象外](#既知の対象外) 参照） |
 | `bq` | BigQuery |
-| `gcloud alpha` / `gcloud beta` | プレビュー機能 |
 
 ### `GOOGLE_APPLICATION_CREDENTIALS` 経由（ADC を読むすべてのもの）
 
