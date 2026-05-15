@@ -16,12 +16,12 @@
 ## アーキテクチャ概要
 
 ```
-1Password (Private vault)
+1Password
   └── bootstrap-{user}@{project} の SA キー JSON
         │ op read (1Password 認証)
         ▼
 gc-vault exec <profile> -- <cmd>
-  1. 1Password から bootstrap SA キーを取得し一時ファイルへ (umask 0600)
+  1. 1Password から bootstrap SA キーを取得し一時ファイルへ
   2. CLI 用:  iamcredentials.generateAccessToken で短命トークン (1h) を取得
              → CLOUDSDK_AUTH_ACCESS_TOKEN にセット
   3. SDK 用:  impersonated_service_account 形式の ADC JSON を生成
