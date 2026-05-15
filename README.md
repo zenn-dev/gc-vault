@@ -64,7 +64,6 @@ gc-vault exec <profile> -- <cmd>
 | `gsutil` | `CLOUDSDK_AUTH_ACCESS_TOKEN` も `GOOGLE_APPLICATION_CREDENTIALS` も読まず、`~/.boto` か gcloud 認証ストアを参照するため動作しない（401 Anonymous caller）。代わりに `gcloud storage` を使う |
 | `kubectl` (GKE) | `gke-gcloud-auth-plugin` が独自フロー（ADC 尊重モードあり） |
 | `firebase` CLI | `firebase login` 独自認証 |
-| `~/.config/gcloud/credentials.db` を直読みする一部ツール | 動作しない |
 
 ## 想定する SA 構成
 
