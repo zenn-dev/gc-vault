@@ -64,6 +64,8 @@ gcloud projects add-iam-policy-binding "${PROJECT}" \
 
 > 必要に応じて、`roles/viewer` よりも狭いカスタムロール（例: 特定リソースの閲覧のみ）に置き換えてください。
 
+> プロジェクトの既存 IAM ポリシーに条件付き binding が含まれている場合、`add-iam-policy-binding` 実行時に「条件を指定してください」というプロンプトが表示されます。本ステップは無条件で付与するのが想定挙動なので、対話的に `None` を選択するか、コマンドに `--condition=None` を明示的に追加してください。
+
 ### 3-4. bootstrap → target の借用権限を付与
 
 最も重要なステップです。**この設定により bootstrap SA が target SA を借用できるようになります**。
@@ -117,9 +119,9 @@ op document get "${PROJECT}-bootstrap" --vault="${OP_VAULT}" | jq -r .client_ema
 
 `client_email` が表示されれば OK。
 
-### 5-2. 借用トークンが発行できるか
+### 5-2. 借用トークンで実コマンドが動くか
 
-bootstrap SA を「源（source）アカウント」として gcloud に登録し、target SA の access token が取れることを確認します。
+bootstrap SA を「源（source）アカウント」として gcloud に登録し、target SA の access token を取得して、そのトークンで実 API が呼べることを一気通貫で確認します。
 
 > **注意**: gcloud CLI は `GOOGLE_APPLICATION_CREDENTIALS` 環境変数を **見ません**（これは ADC / クライアントライブラリ用）。gcloud の認証は `gcloud auth activate-service-account` で切り替える必要があります。ただしユーザーの通常の gcloud 設定を汚さないため、隔離された設定ディレクトリ（`CLOUDSDK_CONFIG`）を使います。
 
@@ -135,26 +137,6 @@ CLOUDSDK_CONFIG="${TMP_CONFIG}" gcloud auth activate-service-account \
   --key-file="${TMP_KEY}" --quiet
 
 # bootstrap → target の借用トークンを取得
-CLOUDSDK_CONFIG="${TMP_CONFIG}" gcloud auth print-access-token \
-  --impersonate-service-account="readonly-${USER_HANDLE}@${PROJECT}.iam.gserviceaccount.com"
-# → ya29.... のような短命トークンが出力されれば OK
-
-rm -rf "${TMP_CONFIG}"
-rm -P "${TMP_KEY}"
-```
-
-### 5-3. 借用トークンで実コマンドが動くか
-
-```bash
-TMP_KEY="$(mktemp -t gc-vault-test-key)"
-TMP_CONFIG="$(mktemp -d -t gc-vault-test-config)"
-
-op document get "${PROJECT}-bootstrap" --vault="${OP_VAULT}" > "${TMP_KEY}"
-chmod 0600 "${TMP_KEY}"
-
-CLOUDSDK_CONFIG="${TMP_CONFIG}" gcloud auth activate-service-account \
-  --key-file="${TMP_KEY}" --quiet
-
 ACCESS_TOKEN="$(CLOUDSDK_CONFIG="${TMP_CONFIG}" gcloud auth print-access-token \
   --impersonate-service-account="readonly-${USER_HANDLE}@${PROJECT}.iam.gserviceaccount.com")"
 
@@ -168,6 +150,13 @@ rm -rf "${TMP_CONFIG}"
 rm -P "${TMP_KEY}"
 unset ACCESS_TOKEN
 ```
+
+確認ポイントは 2 段階：
+
+- `print-access-token` がエラーなく完了し `ACCESS_TOKEN` が取得できれば、bootstrap → target の impersonate 権限が成立している
+- `gcloud projects describe` がプロジェクト情報を返せば、取得したトークンで実 API が呼べている
+
+> `PERMISSION_DENIED: ... iam.serviceAccounts.getAccessToken` のエラーが出る場合、3-4 で付与した `roles/iam.serviceAccountTokenCreator` の binding が反映途中の可能性があります。1〜2 分待ってから再実行してください。それでも解消しない場合は、`gcloud iam service-accounts get-iam-policy "readonly-${USER_HANDLE}@${PROJECT}.iam.gserviceaccount.com" --project="${PROJECT}"` で binding が想定通り付与されているかを確認してください。
 
 > **補足**: 上記の手順は手動検証用です。実際の `gc-vault` MVP では gcloud CLI を介さず、`iamcredentials.googleapis.com` の REST API を直接呼んで借用トークンを取得するため、`CLOUDSDK_CONFIG` の隔離は不要になります。
 
