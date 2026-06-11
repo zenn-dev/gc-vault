@@ -1,93 +1,102 @@
 # gc-vault
 
+**English** | [日本語](./README.ja.md)
+
 [![CI](https://github.com/zenn-dev/gc-vault/actions/workflows/ci.yml/badge.svg)](https://github.com/zenn-dev/gc-vault/actions/workflows/ci.yml)
 
-ローカル開発で GCP リソースを操作する際、長期 credentials をディスクに残さずに済ませるための CLI ツールです。bootstrap SA キーを 1Password に保管し、`gc-vault exec` 経由で実行されるコマンドにだけ短命の借用トークン (Service Account Impersonation) を渡します。
+A CLI tool for working with GCP resources in local development without leaving long-lived credentials on disk. Bootstrap service-account keys live in 1Password, and short-lived impersonated tokens are handed only to commands invoked through `gc-vault exec`.
 
 > **Status: WIP (Pre-alpha)**
-> 仕様策定および MVP 実装中。
+> Spec and MVP implementation in progress.
 
-## なぜ作るか
+## Motivation
 
-- ローカルに `gcloud auth login` / `gcloud auth application-default login` で保存される credentials は、リフレッシュトークンを含むため永続的なアクセスが可能で、漏洩時のリスクが高い。
-- Google Cloud には `--impersonate-service-account` 等の素材は揃っているが、認証情報の保管場所と利用フローを統一する薄いラッパーが手元になかった。
-- 1Password で長期認証情報を保管し、必要時にだけ短命トークンを発行する仕組みをローカルで「強制」したい。
+- Credentials saved by `gcloud auth login` / `gcloud auth application-default login` include refresh tokens, giving persistent access — high risk if leaked.
+- Google Cloud provides the primitives (`--impersonate-service-account`, etc.), but a thin wrapper that unifies where credentials are stored and how they are consumed has been missing.
+- The goal is to enforce locally a workflow where long-lived credentials live only in 1Password and short-lived tokens are minted on demand.
 
-## アーキテクチャ概要
+## Architecture overview
 
 ```
 1Password
-  └── bootstrap-{user}@{project} の SA キー JSON
-        │ op read (1Password 認証)
+  └── SA key JSON for bootstrap-{user}@{project}
+        │ op read (1Password authentication)
         ▼
 gc-vault exec <profile> -- <cmd>
-  1. 1Password から bootstrap SA キーを取得し一時ファイルへ
-  2. CLI 用:  iamcredentials.generateAccessToken で短命トークン (1h) を取得
-             → CLOUDSDK_AUTH_ACCESS_TOKEN にセット
-  3. SDK 用:  impersonated_service_account 形式の ADC JSON を生成
-             → GOOGLE_APPLICATION_CREDENTIALS にセット
-             (SDK 側がトークンを自動更新)
-  4. cmd を exec
-  5. 終了時に一時ファイル削除
+  1. Fetch the bootstrap SA key from 1Password into a temp file
+  2. For CLIs: obtain a short-lived token (1h) via iamcredentials.generateAccessToken
+              → set as CLOUDSDK_AUTH_ACCESS_TOKEN
+  3. For SDKs: generate an impersonated_service_account ADC JSON
+              → set as GOOGLE_APPLICATION_CREDENTIALS
+              (the SDK refreshes the token automatically)
+  4. exec cmd
+  5. Remove the temp file on exit
 ```
 
-ローカルディスクには **長期認証情報を一切残さない** のが本ツールの核となる設計目標です。
+The core design goal is to keep **zero long-lived credentials on local disk**.
 
-## 対象スコープ
+## Scope
 
-`gc-vault` は **gcloud 単体ツールではなく、GCP エコシステム全般** に対する認証ラッパーです。以下の 2 つの環境変数を経由するすべてのツールに対して、自動的に借用クレデンシャルが供給されます。
+`gc-vault` is **not a gcloud-only wrapper but an authentication wrapper for the broader GCP ecosystem**. Any tool that honors the two environment variables below automatically receives the impersonated credentials.
 
-### `CLOUDSDK_AUTH_ACCESS_TOKEN` 経由（gcloud ファミリー CLI）
+### Via `CLOUDSDK_AUTH_ACCESS_TOKEN` (gcloud-family CLIs)
 
-| ツール | 用途 |
+| Tool | Purpose |
 |---|---|
-| `gcloud` | Google Cloud 操作全般（**旧 `gsutil` は対応外** — [既知の対象外](#既知の対象外) 参照） |
+| `gcloud` | General Google Cloud operations (**legacy `gsutil` is unsupported** — see [Known incompatibilities](#known-incompatibilities)) |
 | `bq` | BigQuery |
 
-### `GOOGLE_APPLICATION_CREDENTIALS` 経由（ADC を読むすべてのもの）
+### Via `GOOGLE_APPLICATION_CREDENTIALS` (anything that reads ADC)
 
-`impersonated_service_account` 形式の ADC JSON を一時生成して渡すため、**SDK 側がトークンを自動更新します**（長時間プロセスでもトークン期限切れを意識する必要なし）。
+An `impersonated_service_account`-style ADC JSON is generated on the fly, so **the SDK refreshes tokens automatically** (no need to worry about token expiry in long-running processes).
 
-| カテゴリ | 例 |
+| Category | Examples |
 |---|---|
-| Google Cloud Client Libraries | Ruby / Python / Go / Node / Java / .NET |
-| IaC ツール | Terraform `google` provider, Pulumi `gcp` provider |
-| アプリケーション | Rails アプリ内の GCS / Cloud Tasks / Pub/Sub クライアントなど |
-| 補助ツール | `cloud-sql-proxy` ほか |
+| Google Cloud client libraries | Ruby / Python / Go / Node / Java / .NET |
+| IaC tools | Terraform `google` provider, Pulumi `gcp` provider |
+| Applications | GCS / Cloud Tasks / Pub/Sub clients inside Rails apps, etc. |
+| Auxiliary tools | `cloud-sql-proxy`, others |
 
-### 既知の対象外
+### Known incompatibilities
 
-独自の認証経路を持つツールは個別対応が必要です：
+Tools with their own authentication paths require separate handling:
 
-| ツール | 状況 |
+| Tool | Status |
 |---|---|
-| `gsutil` | `CLOUDSDK_AUTH_ACCESS_TOKEN` も `GOOGLE_APPLICATION_CREDENTIALS` も読まず、`~/.boto` か gcloud 認証ストアを参照するため動作しない（401 Anonymous caller）。代わりに `gcloud storage` を使う |
-| `kubectl` (GKE) | `gke-gcloud-auth-plugin` が独自フロー（ADC 尊重モードあり） |
-| `firebase` CLI | `firebase login` 独自認証 |
+| `gsutil` | Reads neither `CLOUDSDK_AUTH_ACCESS_TOKEN` nor `GOOGLE_APPLICATION_CREDENTIALS`; it consults `~/.boto` or the gcloud credential store and fails with 401 Anonymous caller. Use `gcloud storage` instead. |
+| `kubectl` (GKE) | `gke-gcloud-auth-plugin` uses its own flow (has an ADC-respecting mode). |
+| `firebase` CLI | Uses its own `firebase login` authentication. |
 
-## 想定する SA 構成
+## Expected SA layout
 
-各 GCP プロジェクトに、ユーザーごとに `bootstrap` SA と 1 つ以上の `target` SA を作成します：
+For each GCP project, create a per-user `bootstrap` SA and one or more `target` SAs:
 
-| SA | 役割 | 権限 |
+| SA | Role | Permissions |
 |---|---|---|
-| `bootstrap-{user}@{project}` | 借用元（1Password に鍵を保管） | 借用先の target SA に対する `roles/iam.serviceAccountTokenCreator` のみ |
-| `target-{role}-{user}@{project}` | 借用先（実際にリソースを操作） | ロールに応じた最小権限 |
+| `bootstrap-{user}@{project}` | Impersonation source (key stored in 1Password) | Only `roles/iam.serviceAccountTokenCreator` against the target SAs |
+| `target-{role}-{user}@{project}` | Impersonation target (actually touches resources) | Least-privilege roles per use case |
 
-`bootstrap` は target を借用する以外の権限を持たないため、漏洩時の被害は target の権限範囲に限定されます。
+Because the `bootstrap` SA has no permissions beyond impersonating targets, a leaked bootstrap key gives an attacker only what the corresponding target SA can do.
 
-target SA は **操作する主体（ロール）ごとに複数設定できます**。例えば「自分が手元のターミナルから操作する用 (`target-user-{user}@{project}`)」と「Claude Code から操作させる用 (`target-claude-{user}@{project}`)」を分けて持ち、後者には readonly 権限のみを付与しておけば、Claude Code 経由での操作はリソース閲覧に限定でき、credentials が漏れた場合の被害範囲も `target-claude` の権限内に収まります。`gc-vault` のプロファイル単位で target を切り替え、`bootstrap` SA から各 target に対して個別に `roles/iam.serviceAccountTokenCreator` を付与してください。命名は例示にすぎないため、運用に合わせて調整可能です。
+You can configure **multiple target SAs per operator role**. For example, split:
 
-## 前提
+- `target-user-{user}@{project}` — what you use from your own terminal
+- `target-claude-{user}@{project}` — what Claude Code uses, restricted to read-only roles
+
+With this layout, Claude Code is limited to read operations, and a leaked Claude Code credential is bounded by the `target-claude` permissions.
+
+Switch targets per profile in `gc-vault`, and grant `roles/iam.serviceAccountTokenCreator` from the `bootstrap` SA to each target individually. The naming above is illustrative — adapt it to your operational conventions.
+
+## Prerequisites
 
 - macOS (arm64 / amd64)
 - [`gcloud` CLI](https://cloud.google.com/sdk/docs/install)
-- [`op` CLI (1Password)](https://developer.1password.com/docs/cli/get-started/) — Settings → Developer → 「Integrate with 1Password CLI」を有効化
-- (開発時のみ) Go 1.23+
+- [`op` CLI (1Password)](https://developer.1password.com/docs/cli/get-started/) — enable Settings → Developer → "Integrate with 1Password CLI"
+- (Development only) Go 1.23+
 
-> **Claude Code から使う場合**: Claude Code のサンドボックスが 1Password デスクトップアプリへのアクセスを遮断するため、`gc-vault exec` を呼ぶ際は `dangerouslyDisableSandbox: true` での実行が必要です。Claude Code の Bash ツールは各呼び出しを独立プロセスとして spawn するため、1Password が各実行を別セッション扱いし、結果的に呼び出しごとに 1Password の認証が要求されます（サンドボックス解除と 1Password の認証の二段階防御）。連続実行が多い場合は `gc-vault shell` 経由で起動する運用も可能。詳細は [Claude Code との併用](#claude-code-との併用) を参照。
+> **When using from Claude Code**: Claude Code's sandbox blocks access to the 1Password desktop app, so `gc-vault exec` must be invoked with `dangerouslyDisableSandbox: true`. Because Claude Code's Bash tool spawns each call as an independent process, 1Password treats every invocation as a separate session and re-prompts for authentication each time (a two-layer defense: sandbox release plus 1Password re-authentication). For workflows with many sequential calls, you can launch via `gc-vault shell` instead. See [Using with Claude Code](#using-with-claude-code).
 
-## インストール
+## Installation
 
 ### `go install`
 
@@ -95,71 +104,71 @@ target SA は **操作する主体（ロール）ごとに複数設定できま�
 go install github.com/zenn-dev/gc-vault/cmd/gc-vault@latest
 ```
 
-### ソースから `make install`
+### From source with `make install`
 
 ```bash
 git clone https://github.com/zenn-dev/gc-vault.git
 cd gc-vault
-make install   # $GOPATH/bin にインストール
+make install   # installs to $GOPATH/bin
 ```
 
-ローカルディレクトリにビルドだけしたい場合：
+To build only into the current directory:
 
 ```bash
-make build     # bin/gc-vault に出力
+make build     # writes to bin/gc-vault
 ```
 
-### Releases ページから
+### From the Releases page
 
-[Releases](https://github.com/zenn-dev/gc-vault/releases) から該当 OS / アーキテクチャの tar.gz をダウンロードし、解凍してパスの通った場所に配置。
+Download the tar.gz for your OS / architecture from [Releases](https://github.com/zenn-dev/gc-vault/releases), extract it, and place the binary on your PATH.
 
-### Claude Code から呼び出せるようにする
+### Making the binary callable from Claude Code
 
-`go install` / `make install` で配置される `~/go/bin/gc-vault` は、Claude Code の Bash ツールの PATH に含まれていない場合があります。確実に Claude Code から呼べるよう、PATH に含まれている `~/.local/bin` にシンボリックリンクを張ります。
+`~/go/bin/gc-vault`, where `go install` / `make install` places the binary, is not necessarily on the PATH Claude Code's Bash tool sees. To make sure Claude Code can find it, symlink the binary into `~/.local/bin`, which is on the PATH:
 
 ```bash
 mkdir -p ~/.local/bin
 ln -s ~/go/bin/gc-vault ~/.local/bin/gc-vault
 ```
 
-代替として `~/.zshenv` で `~/go/bin` を PATH に追加する方法もありますが、Claude Code の Bash ツールが zsh を起動するとは限らないため、symlink のほうが汎用的です。
+Alternatively you can add `~/go/bin` to PATH in `~/.zshenv`, but Claude Code's Bash tool doesn't necessarily launch zsh, so the symlink is more reliable.
 
-## 開発
+## Development
 
 ```bash
-make help        # 使用可能なターゲット一覧
-make build       # バイナリビルド
-make test        # テスト実行
-make test-cover  # カバレッジ付きテスト
-make lint        # go vet + gofmt チェック
+make help        # list available targets
+make build       # build the binary
+make test        # run tests
+make test-cover  # run tests with coverage
+make lint        # go vet + gofmt check
 make fmt         # gofmt -w .
-make clean       # bin/ 削除
+make clean       # remove bin/
 ```
 
-## リリース手順
+## Release process
 
-タグを切るだけで GitHub Actions が goreleaser を起動し、Release（draft）を作成します：
+Tagging a release triggers GitHub Actions to run goreleaser and create a draft Release:
 
 ```bash
 git tag -a v0.1.0 -m "Release v0.1.0"
 git push origin v0.1.0
 ```
 
-成果物（`darwin_x86_64` / `darwin_arm64` の tar.gz と `checksums.txt`）が draft Release に添付されます。確認後、GitHub UI で Publish すれば公開リリースになります。
+The draft Release receives the artifacts (`darwin_x86_64` / `darwin_arm64` tar.gz files plus `checksums.txt`). After reviewing, click Publish in the GitHub UI to make it public.
 
-将来 brew tap を有効にする場合は、`gc-vault` リポジトリを public 化した上で、別途 `zenn-dev/homebrew-tap` リポジトリを作成し、`.goreleaser.yaml` に `brews:` セクションを追加します。
+To enable a brew tap later, make the `gc-vault` repository public, create a separate `zenn-dev/homebrew-tap` repository, and add a `brews:` section to `.goreleaser.yaml`.
 
-## セットアップ
+## Setup
 
-1. **IAM セットアップ**: [docs/runbook-iam-setup.md](./docs/runbook-iam-setup.md) に従い、bootstrap SA / target SA を作成し、bootstrap キーを 1Password に保管します。
-2. **設定ファイル**: [examples/config.toml](./examples/config.toml) を `~/.config/gc-vault/config.toml` にコピーし、自分の値に編集します。
-3. **動作確認**: `gc-vault doctor` で前提条件をチェックします。
+1. **IAM setup**: Follow [docs/runbook-iam-setup.md](./docs/runbook-iam-setup.md) to create the bootstrap SA / target SAs and store the bootstrap key in 1Password. (Runbook is currently Japanese-only.)
+2. **Config file**: Copy [examples/config.toml](./examples/config.toml) to `~/.config/gc-vault/config.toml` and edit it for your values.
+3. **Sanity check**: Run `gc-vault doctor` to verify prerequisites.
 
-## 使い方
+## Usage
 
 ### `gc-vault list`
 
-設定済みプロファイルの一覧を表示します。
+Lists configured profiles.
 
 ```bash
 $ gc-vault list
@@ -169,7 +178,7 @@ my-app-dev          my-app-dev          readonly-alice@my-app-dev.iam.gservice..
 
 ### `gc-vault exec PROFILE -- COMMAND`
 
-借用クレデンシャルでコマンドを 1 回実行します。
+Runs a single command with impersonated credentials.
 
 ```bash
 $ gc-vault exec my-app-dev -- gcloud projects describe my-app-dev
@@ -179,7 +188,7 @@ $ gc-vault exec my-app-dev -- bin/rails console
 
 ### `gc-vault shell PROFILE`
 
-借用クレデンシャルがセットされた subshell を起動します。`exit` で抜けると環境変数も自動的に消えます。
+Launches a subshell with impersonated credentials set. Exit the subshell with `exit`; the environment variables disappear with it.
 
 ```bash
 $ gc-vault shell my-app-dev
@@ -189,27 +198,27 @@ $ gcloud run services list
 $ exit
 ```
 
-#### プロンプトに profile 名を表示する（任意）
+#### Showing the profile name in your prompt (optional)
 
-`shell` 中は `GCP_VAULT_ACTIVE_PROFILE` 環境変数がセットされています。これを使ってプロンプトを装飾できます。
+Inside `shell`, the environment variable `GCP_VAULT_ACTIVE_PROFILE` is set. You can use it to decorate your prompt.
 
-**重要**: oh-my-zsh などのテーマフレームワークが `PROMPT` / `PS1` を上書きするため、**rc ファイルの末尾**（テーマ読み込みより後ろ）に配置してください。
+**Important**: Theme frameworks such as oh-my-zsh overwrite `PROMPT` / `PS1`, so place the snippet **at the end of your rc file** (after the theme is loaded).
 
-**zsh** (`~/.zshrc` の末尾):
+**zsh** (end of `~/.zshrc`):
 ```zsh
 if [[ -n "$GCP_VAULT_ACTIVE_PROFILE" ]]; then
   PROMPT="(gcp:$GCP_VAULT_ACTIVE_PROFILE) $PROMPT"
 fi
 ```
 
-**bash** (`~/.bashrc` の末尾):
+**bash** (end of `~/.bashrc`):
 ```bash
 if [ -n "$GCP_VAULT_ACTIVE_PROFILE" ]; then
   PS1="(gcp:$GCP_VAULT_ACTIVE_PROFILE) $PS1"
 fi
 ```
 
-**配置順を気にしたくない場合 (zsh, precmd hook 利用)**:
+**If you'd rather not worry about ordering** (zsh, via `precmd` hook):
 ```zsh
 __gc_vault_prompt() {
   if [[ -n "$GCP_VAULT_ACTIVE_PROFILE" && "$PROMPT" != "(gcp:$GCP_VAULT_ACTIVE_PROFILE) "* ]]; then
@@ -221,7 +230,7 @@ precmd_functions+=(__gc_vault_prompt)
 
 ### `gc-vault doctor`
 
-ローカル環境の健全性を診断します。
+Diagnoses the local environment.
 
 ```bash
 $ gc-vault doctor
@@ -234,102 +243,102 @@ OK    config: /Users/alice/.config/gc-vault/config.toml (3 profile(s))
 OK    no bare gcloud credentials
 ```
 
-### gcloud credentials の削除（手動）
+### Removing gcloud credentials (manual)
 
-`gc-vault` への移行が完了したら、ローカルに残っている gcloud credentials を以下で削除します（`gc-vault` 自身は gcloud の state に手を出さないため、純正の手順で行います）：
+Once your migration to `gc-vault` is complete, remove any remaining local gcloud credentials. `gc-vault` does not touch gcloud's own state, so use the official commands:
 
 ```bash
 gcloud auth revoke --all
 gcloud auth application-default revoke
 
-# 念のためファイルが残っていないか確認
+# Verify nothing remains
 ls -la ~/.config/gcloud/credentials.db \
        ~/.config/gcloud/application_default_credentials.json 2>/dev/null
 ```
 
-`gc-vault doctor` がこれらのファイルの残存を WARN で警告します。
+`gc-vault doctor` raises a WARN if these files remain.
 
-### bootstrap SA キーのローテーション（手動）
+### Rotating the bootstrap SA key (manual)
 
-bootstrap SA キーは、組織のポリシーに従って定期的にローテーションすることを推奨します。bootstrap SA は `roles/iam.serviceAccountTokenCreator` のみを持ち、漏洩時の影響範囲が target SA の権限内に閉じるため、ローテーションは `gc-vault` 内のコマンドではなく **`gcloud` + `op` の手動操作** で行います（[Runbook の 8 章](./docs/runbook-iam-setup.md#8-ローテーション) 参照）。
+Rotate the bootstrap SA key periodically per your organization's policy. Because the bootstrap SA only holds `roles/iam.serviceAccountTokenCreator` and the blast radius of a leak is bounded by the target SA's permissions, rotation is handled **manually with `gcloud` + `op`** rather than a `gc-vault` subcommand (see [Section 8 of the runbook](./docs/runbook-iam-setup.md#8-ローテーション)).
 
-## Claude Code との併用
+## Using with Claude Code
 
-[Claude Code](https://claude.com/claude-code) は macOS 上で Unix ドメインソケット等へのアクセスを制限するサンドボックスを有効化しています。これにより `op` CLI から 1Password デスクトップアプリへの通信経路が遮断されるため、Claude Code の Bash ツールから `gc-vault exec` をそのまま呼んでも失敗します。
+[Claude Code](https://claude.com/claude-code) runs a sandbox on macOS that restricts access to Unix domain sockets and similar IPC paths. This blocks the `op` CLI from talking to the 1Password desktop app, so a plain `gc-vault exec` call from Claude Code's Bash tool fails.
 
-### 推奨: 同梱の Claude Code Skill をインストールする
+### Recommended: install the bundled Claude Code skill
 
-このリポジトリの [`.claude/skills/gc-vault/`](./.claude/skills/gc-vault) 配下に、Claude Code 用のスキル定義を同梱しています。Claude Code から `gc-vault` を使う場合は、まずこのスキルをインストールしてください。スキルが Claude Code に対して、後述の「推奨運用」（サンドボックス解除 + 1Password の認証の二段階防御）に沿ったコマンド組み立てを指示します。
+This repository bundles a Claude Code skill at [`.claude/skills/gc-vault/`](./.claude/skills/gc-vault). When using `gc-vault` from Claude Code, install this skill first. It instructs Claude Code to assemble commands following the workflow described below (sandbox release + 1Password authentication, two layers of defense).
 
-#### グローバルインストール（複数プロジェクトで使う場合に推奨）
+#### Global install (recommended when used across multiple projects)
 
 ```bash
 mkdir -p ~/.claude/skills
 cp -r .claude/skills/gc-vault ~/.claude/skills/
 ```
 
-または symlink でリポジトリの更新を追従させる:
+Or symlink so the skill tracks repository updates:
 
 ```bash
 mkdir -p ~/.claude/skills
 ln -s "$(pwd)/.claude/skills/gc-vault" ~/.claude/skills/gc-vault
 ```
 
-#### プロジェクト別インストール
+#### Per-project install
 
-特定プロジェクトでのみ使う場合は、そのプロジェクト直下の `.claude/skills/` にコピーしてください。
+For use in a single project, copy it under that project's `.claude/skills/`:
 
 ```bash
 mkdir -p /path/to/your-project/.claude/skills
 cp -r .claude/skills/gc-vault /path/to/your-project/.claude/skills/
 ```
 
-スキルを置いた状態で Claude Code を起動すると、`gc-vault` が必要なタイミングで自動的に本スキルが参照され、`dangerouslyDisableSandbox: true` 付きの `gc-vault exec` 呼び出しが提案されます。
+With the skill in place, Claude Code automatically references it when `gc-vault` is needed and proposes invocations of `gc-vault exec` with `dangerouslyDisableSandbox: true`.
 
-> **注意**: Skill での実行時は毎回 1Password の認証を求められますが、これは Claude Code および 1Password のプロセスモデルに依存する挙動であり、両者のいずれかが変更されると挙動が変わる可能性があります。1Password の認証プロンプトが省略されるようになった場合は防御層が一段減るため、運用を見直してください。
+> **Note**: Each skill-driven invocation re-prompts for 1Password authentication. This behavior depends on Claude Code's and 1Password's process models and may change if either side changes. If 1Password ever stops prompting, you've lost one layer of defense — revisit your workflow.
 
-### 代替運用: `gc-vault shell` から Claude Code を起動
+### Alternative: launch Claude Code from `gc-vault shell`
 
-連続的に多数の GCP 操作を行い、毎回 1Password の認証を承認するのが運用上重い場合は、Claude Code を起動する **前** に `gc-vault shell` でサブシェルに入っておく方法もあります。
+If you make many consecutive GCP calls and approving 1Password every time is operationally heavy, you can enter a `gc-vault shell` **before** launching Claude Code.
 
 ```bash
-gc-vault shell zenn-dev-develop   # 1Password 認証
-claude                            # 借用クレデンシャルを継承して起動
+gc-vault shell zenn-dev-develop   # 1Password authentication
+claude                            # launches inheriting impersonated credentials
 ```
 
-**特性**:
+**Properties**:
 
-- Claude Code 内では環境変数 (`CLOUDSDK_AUTH_ACCESS_TOKEN`, `GOOGLE_APPLICATION_CREDENTIALS` 等) を継承して `gcloud` / `gcloud storage` / `bq` / `terraform` を **直接** 実行できる（`gc-vault exec` 不要、サンドボックス標準のまま）
-- 1Password へのアクセスは Claude Code を起動する **前** にユーザーの手元で完結している
-- 1Password の認証は `gc-vault shell` 起動時の **1 回のみ**
+- Inside Claude Code, the environment variables (`CLOUDSDK_AUTH_ACCESS_TOKEN`, `GOOGLE_APPLICATION_CREDENTIALS`, etc.) are inherited, so `gcloud` / `gcloud storage` / `bq` / `terraform` run **directly** (no `gc-vault exec` needed, sandbox stays in default mode).
+- 1Password access happens **before** Claude Code launches, outside the agent's reach.
+- 1Password authentication is required **only once**, at `gc-vault shell` startup.
 
-**トレードオフ**:
+**Trade-offs**:
 
-- セッション中、shell に展開された credentials は agent から読み出し可能な状態にある
-  - `CLOUDSDK_AUTH_ACCESS_TOKEN`（短命アクセストークン、30〜60 分）
-  - `GOOGLE_APPLICATION_CREDENTIALS` が指す ADC ファイル（bootstrap SA キーへの参照を含む）
-- プロンプトインジェクションでこれらが読み出されると、target SA（readonly）の権限と bootstrap キーの残存期間が攻撃者に渡る
-- ただし、Claude Code 内に **1Password 本体への新規アクセス経路は存在しない**（既に取得済みの credentials の範囲に閉じる）
+- During the session, the credentials expanded into the shell are readable by the agent:
+  - `CLOUDSDK_AUTH_ACCESS_TOKEN` (short-lived access token, 30–60 min)
+  - The ADC file pointed to by `GOOGLE_APPLICATION_CREDENTIALS` (which references the bootstrap SA key)
+- A prompt injection that reads these gives the attacker the target SA's permissions (read-only) and the remaining lifetime of the bootstrap key reference.
+- However, **there is no new path to 1Password itself from inside Claude Code** — exposure stays bounded by the credentials already in hand.
 
-借用トークンが失効したら、Claude Code を終了し、再度 `gc-vault shell` から起動し直します。
+When the impersonated token expires, exit Claude Code and re-launch it via `gc-vault shell`.
 
-### 補足: ベースラインの防御策
+### Additional: baseline defenses
 
-どちらの運用でも、以下を併用するとリスクを縮小できます:
+Either workflow benefits from these alongside:
 
-- **GCP 側**: target SA を readonly に固定（本ツールの既定設計）、漏洩前提で IAM Conditions / VPC Service Controls / Audit alerts を活用
-- **ローテーション周期**: bootstrap キーのローテーション周期は組織のポリシーに従う（より高頻度なローテーションは漏洩時の有効期間を短縮できる）
+- **On the GCP side**: Keep target SAs read-only (the default in this tool's design) and assume leaks — use IAM Conditions, VPC Service Controls, and audit alerts.
+- **Rotation cadence**: Follow your organization's policy for bootstrap key rotation. More frequent rotation shortens the post-leak exposure window.
 
-### 採用しないアプローチ: サンドボックス設定での常時許可
+### Approach not recommended: blanket sandbox permissions
 
-`~/.claude/settings.json` の `sandbox` 設定に必要な許可を加えれば、サンドボックス内でも `gc-vault exec` が動作するように見えるかもしれません。**しかし実際には、`op` CLI が 1Password デスクトップアプリと通信する経路は単一の Unix ソケットでは完結しない** ため、Unix ソケット複数 + macOS 固有の IPC 経路の許可など、実質的にサンドボックスを大きく緩める必要があります。
+You might think you can add the necessary permissions to `~/.claude/settings.json`'s `sandbox` setting so that `gc-vault exec` runs even inside the sandbox. **In practice, the `op` CLI's path to the 1Password desktop app is not a single Unix socket**, so you would need to allow multiple Unix sockets and macOS-specific IPC paths — effectively a major sandbox relaxation.
 
-このアプローチを推奨しない理由:
+Reasons not to recommend it:
 
-- 1Password の更新で内部経路が変わると突然動かなくなる、あるいは知らないうちに別経路で疎通するなど、**設定がフラジャイル**
-- 一度許可してしまうと、Claude Code 内のプロンプトインジェクション時に 1Password 全体への到達が常時開通している状態になる
-- 推奨運用と比べた利点がない: 1Password の認証プロンプトは Claude Code の Bash プロセスモデル由来の挙動なので両方法で同じく出るが、本アプローチでは `dangerouslyDisableSandbox: true` に伴う Bash 承認プロンプトという防御層が失われる
+- 1Password updates can change internal paths, breaking your setup or quietly routing through a new path — the configuration is **fragile**.
+- Once allowed, a prompt injection inside Claude Code has a permanently open path to all of 1Password.
+- No advantage over the recommended workflow: the 1Password prompt is a consequence of Claude Code's Bash process model and fires either way, while this approach loses the extra Bash approval prompt that comes with `dangerouslyDisableSandbox: true`.
 
-## ドキュメント
+## Documentation
 
-- [docs/runbook-iam-setup.md](./docs/runbook-iam-setup.md) — GCP / IAM 側のセットアップ手順
+- [docs/runbook-iam-setup.md](./docs/runbook-iam-setup.md) — GCP / IAM setup procedure (currently Japanese-only)
