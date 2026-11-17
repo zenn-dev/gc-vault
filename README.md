@@ -168,7 +168,7 @@ The Release receives the artifacts (`darwin_x86_64` / `darwin_arm64` tar.gz file
 
 Pushing to the tap uses a deploy key registered on `zenn-dev/homebrew-tap` with write access. Its private key is stored in the repository secret `HOMEBREW_TAP_DEPLOY_KEY`.
 
-To check the config and artifacts locally before releasing:
+To check the config and artifacts locally before releasing (requires goreleaser v2.19 or later):
 
 ```bash
 goreleaser check

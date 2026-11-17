@@ -69,7 +69,6 @@ homebrew_casks:
         private_key: "{{ .Env.HOMEBREW_TAP_DEPLOY_KEY }}"
     homepage: https://github.com/zenn-dev/gc-vault
     description: "Run GCP tools with short-lived impersonated credentials sourced from 1Password"
-    license: MIT
     commit_author:
       name: goreleaserbot
       email: bot@goreleaser.com

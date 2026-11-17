@@ -168,7 +168,7 @@ git push origin v0.1.0
 
 tap への push には、`zenn-dev/homebrew-tap` に書き込み権限付きで登録した Deploy key を使います。秘密鍵はリポジトリの Secret `HOMEBREW_TAP_DEPLOY_KEY` に保存しています。
 
-リリース前にローカルで設定と生成物を確認する場合：
+リリース前にローカルで設定と生成物を確認する場合（goreleaser v2.19 以降が必要）：
 
 ```bash
 goreleaser check
