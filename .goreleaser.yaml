@@ -54,5 +54,39 @@ changelog:
       - Merge branch
 
 release:
-  draft: true
+  draft: false
   prerelease: auto
+
+homebrew_casks:
+  - name: gc-vault
+    repository:
+      owner: zenn-dev
+      name: homebrew-tap
+      branch: main
+      # Push over SSH with a deploy key (write access to homebrew-tap only).
+      git:
+        url: "git@github.com:zenn-dev/homebrew-tap.git"
+        private_key: "{{ .Env.HOMEBREW_TAP_DEPLOY_KEY }}"
+    homepage: https://github.com/zenn-dev/gc-vault
+    description: "Run GCP tools with short-lived impersonated credentials sourced from 1Password"
+    license: MIT
+    commit_author:
+      name: goreleaserbot
+      email: bot@goreleaser.com
+    commit_msg_template: "Brew cask update for {{ .ProjectName }} version {{ .Tag }}"
+    # Don't push prerelease tags (e.g. v0.1.0-rc.1) to the tap.
+    skip_upload: auto
+    # The binary is not signed / notarized, so strip the quarantine attribute
+    # to keep Gatekeeper from blocking it.
+    hooks:
+      post:
+        install_steps: |
+          on_macos do
+            run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ .StagedPath }}/gc-vault"]
+          end
+    caveats: |
+      gc-vault requires the following CLIs at runtime:
+        - gcloud: brew install --cask gcloud-cli
+        - op (1Password CLI): brew install --cask 1password-cli
+      Enable "Integrate with 1Password CLI" in the 1Password app
+      (Settings > Developer).

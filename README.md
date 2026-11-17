@@ -98,6 +98,14 @@ Switch targets per profile in `gc-vault`, and grant `roles/iam.serviceAccountTok
 
 ## Installation
 
+### Homebrew (recommended)
+
+```bash
+brew install zenn-dev/tap/gc-vault
+```
+
+Upgrade with `brew upgrade gc-vault`. The runtime dependencies `gcloud` / `op` are not installed automatically — see [Prerequisites](#prerequisites) and install them separately.
+
 ### `go install`
 
 ```bash
@@ -124,6 +132,8 @@ Download the tar.gz for your OS / architecture from [Releases](https://github.co
 
 ### Making the binary callable from Claude Code
 
+If you installed via Homebrew, the binary lives in `/opt/homebrew/bin` (`/usr/local/bin` on Intel Macs), which is normally already on PATH, so this step is unnecessary.
+
 `~/go/bin/gc-vault`, where `go install` / `make install` places the binary, is not necessarily on the PATH Claude Code's Bash tool sees. To make sure Claude Code can find it, symlink the binary into `~/.local/bin`, which is on the PATH:
 
 ```bash
@@ -147,16 +157,23 @@ make clean       # remove bin/
 
 ## Release process
 
-Tagging a release triggers GitHub Actions to run goreleaser and create a draft Release:
+Tagging a release triggers GitHub Actions to run goreleaser and publish the Release:
 
 ```bash
 git tag -a v0.1.0 -m "Release v0.1.0"
 git push origin v0.1.0
 ```
 
-The draft Release receives the artifacts (`darwin_x86_64` / `darwin_arm64` tar.gz files plus `checksums.txt`). After reviewing, click Publish in the GitHub UI to make it public.
+The Release receives the artifacts (`darwin_x86_64` / `darwin_arm64` tar.gz files plus `checksums.txt`), and the Cask in [zenn-dev/homebrew-tap](https://github.com/zenn-dev/homebrew-tap) (`Casks/gc-vault.rb`) is updated at the same time. Prerelease tags such as `v0.1.0-rc.1` produce a prerelease Release and do not update the Cask.
 
-To enable a brew tap later, make the `gc-vault` repository public, create a separate `zenn-dev/homebrew-tap` repository, and add a `brews:` section to `.goreleaser.yaml`.
+Pushing to the tap uses a deploy key registered on `zenn-dev/homebrew-tap` with write access. Its private key is stored in the repository secret `HOMEBREW_TAP_DEPLOY_KEY`.
+
+To check the config and artifacts locally before releasing:
+
+```bash
+goreleaser check
+HOMEBREW_TAP_DEPLOY_KEY=dummy goreleaser release --snapshot --clean   # outputs to dist/, publishes nothing
+```
 
 ## Setup
 

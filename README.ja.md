@@ -98,6 +98,14 @@ target SA は **操作する主体（ロール）ごとに複数設定できま�
 
 ## インストール
 
+### Homebrew（推奨）
+
+```bash
+brew install zenn-dev/tap/gc-vault
+```
+
+アップデートは `brew upgrade gc-vault` で行います。実行時に必要な `gcloud` / `op` は自動ではインストールされないため、[前提](#前提) を参照して別途インストールしてください。
+
 ### `go install`
 
 ```bash
@@ -124,6 +132,8 @@ make build     # bin/gc-vault に出力
 
 ### Claude Code から呼び出せるようにする
 
+Homebrew でインストールした場合、バイナリは `/opt/homebrew/bin`（Intel Mac は `/usr/local/bin`）に配置され、通常は PATH に含まれているため、この手順は不要です。
+
 `go install` / `make install` で配置される `~/go/bin/gc-vault` は、Claude Code の Bash ツールの PATH に含まれていない場合があります。確実に Claude Code から呼べるよう、PATH に含まれている `~/.local/bin` にシンボリックリンクを張ります。
 
 ```bash
@@ -147,16 +157,23 @@ make clean       # bin/ 削除
 
 ## リリース手順
 
-タグを切るだけで GitHub Actions が goreleaser を起動し、Release（draft）を作成します：
+タグを切るだけで GitHub Actions が goreleaser を起動し、Release を公開します：
 
 ```bash
 git tag -a v0.1.0 -m "Release v0.1.0"
 git push origin v0.1.0
 ```
 
-成果物（`darwin_x86_64` / `darwin_arm64` の tar.gz と `checksums.txt`）が draft Release に添付されます。確認後、GitHub UI で Publish すれば公開リリースになります。
+成果物（`darwin_x86_64` / `darwin_arm64` の tar.gz と `checksums.txt`）が Release に添付され、同時に [zenn-dev/homebrew-tap](https://github.com/zenn-dev/homebrew-tap) の Cask（`Casks/gc-vault.rb`）が更新されます。`v0.1.0-rc.1` のようなプレリリースのタグは Release が prerelease 扱いになり、Cask は更新されません。
 
-将来 brew tap を有効にする場合は、`gc-vault` リポジトリを public 化した上で、別途 `zenn-dev/homebrew-tap` リポジトリを作成し、`.goreleaser.yaml` に `brews:` セクションを追加します。
+tap への push には、`zenn-dev/homebrew-tap` に書き込み権限付きで登録した Deploy key を使います。秘密鍵はリポジトリの Secret `HOMEBREW_TAP_DEPLOY_KEY` に保存しています。
+
+リリース前にローカルで設定と生成物を確認する場合：
+
+```bash
+goreleaser check
+HOMEBREW_TAP_DEPLOY_KEY=dummy goreleaser release --snapshot --clean   # dist/ に出力。publish はしない
+```
 
 ## セットアップ
 
